@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CSV File Upload</title>
+<style>
+  table {
+    border-collapse: collapse;
+    width: 100%;
+  }
+
+  th, td {
+    border: 1px solid #dddddd;
+    text-align: left;
+    padding: 8px;
+  }
+
+  th {
+    background-color: #f2f2f2;
+  }
+</style>
+</head>
+<body>
+
+<h2>Upload CSV File</h2>
+<input type="file" id="csvFileInput" accept=".csv">
+
+<div id="csvPreview">
+  <!-- CSV preview will be displayed here -->
+</div>
+
+<script>
+document.getElementById('csvFileInput').addEventListener('change', function(event) {
+  const file = event.target.files[0];
+  const reader = new FileReader();
+  
+  reader.onload = function(e) {
+    const lines = e.target.result.split('\n');
+    const headers = lines[0].trim().split(',');
+    let previewHTML = '<table><tr>';
+    
+    headers.forEach(header => {
+      previewHTML += '<th>' + header + '</th>';
+    });
+    previewHTML += '<th>Price</th><th>Total Value</th></tr>';
+    
+    for (let i = 1; i <= 3 && i < lines.length; i++) {
+      const columns = lines[i].trim().split(',');
+      previewHTML += '<tr>';
+      columns.forEach(column => {
+        previewHTML += '<td>' + column + '</td>';
+      });
+
+      // Add placeholder for price and total value
+      previewHTML += '<td id="price' + i + '"></td>';
+      previewHTML += '<td id="totalValue' + i + '"></td>';
+      
+      previewHTML += '</tr>';
+    }
+    
+    previewHTML += '</table>';
+    document.getElementById('csvPreview').innerHTML = previewHTML;
+
+    // Call function to fetch price data for each row
+    getPriceData(lines);
+  };
+  
+  reader.readAsText(file);
+});
+
+function getPriceData(lines) {
+  for (let i = 1; i <= 3 && i < lines.length; i++) {
+    const columns = lines[i].trim().split(',');
+    const token_symbol = columns[5];
+    const timestamp = columns[0];
+    const amount = parseFloat(columns[6]);
+    
+    // Make API call to get price data
+    fetchPriceData(token_symbol, timestamp, amount, i);
+  }
+}
+
+function fetchPriceData(token_symbol, timestamp, amount, row) {
+  // Construct URL
+  const unix_timestamp = new Date(timestamp).getTime() / 1000;
+  const url = `https://api.coingecko.com/api/v3/coins/${token_symbol.toLowerCase()}/market_chart/range?vs_currency=usd&from=${unix_timestamp}&to=${unix_timestamp + 3600}`;
+  
+  // Send GET request
+  fetch(url)
+    .then(response => {
+      if (!response.ok) {
+        throw new Error('Network response was not ok');
+      }
+      return response.json();
+    })
+    .then(data => {
+      if ('prices' in data && data.prices.length > 0) {
+        const price = data.prices[0][1]; // Get price from response
+        const totalPrice = price * amount; // Calculate total value
+        document.getElementById('price' + row).innerText = price.toFixed(2); // Display price in table cell
+        document.getElementById('totalValue' + row).innerText = totalPrice.toFixed(2); // Display total value in table cell
+      } else {
+        document.getElementById('price' + row).innerText = 'Price not found';
+        document.getElementById('totalValue' + row).innerText = 'Total value not found';
+      }
+    })
+    .catch(error => {
+      console.error('Error fetching price data:', error);
+      document.getElementById('price' + row).innerText = 'Error fetching price';
+      document.getElementById('totalValue' + row).innerText = 'Error calculating total value';
+    });
+}
+</script>
+
+</body>
+</html>
